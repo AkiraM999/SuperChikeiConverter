@@ -2,11 +2,29 @@ import streamlit as st
 import pandas as pd
 import xml.etree.ElementTree as ET
 import io
+import base64
+import os
 from datetime import datetime, timedelta, timezone
 
 # ページ設定
 st.set_page_config(page_title="GPX to QGIS Database", layout="wide")
-st.title("📍 調査用GPXデータ 変換ツール")
+st.title("📍 調査用GPXデータ 変換ツール(β版)")
+
+# ==========================================
+# 画像を表に埋め込むための関数
+# ==========================================
+def get_image_tag(file_path):
+    # 画像ファイルが存在すればBase64に変換してimgタグを作成、なければ空文字を返す
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = base64.b64encode(f.read()).decode("utf-8")
+        return f'<img src="data:image/png;base64,{data}" width="40">'
+    return ""
+
+img_03 = get_image_tag("green_pin.png")
+img_04 = get_image_tag("orange_pin.png")
+img_05 = get_image_tag("pink_pin.png")
+img_06 = get_image_tag("yellow_pin.png")
 
 # ＝=========================================
 # アプリの説明書き（UI部分）
@@ -21,26 +39,16 @@ st.markdown("""
 
 st.markdown("### 📌 現在対応しているアイコンと岩相の対応表")
 
-# 表形式で対応表を表示
-st.markdown("""
-| アイコン番号 | 判定される岩相・状態 | 備考 |
-| :--- | :--- | :--- |
-| **1700003** | mdst | |
-| **1700004** | alt. mdst sst | |
-| **1700005** | tf | |
-| **1700006** | sst | |
-| **1910003** | Road Closed (通行止め) | 別列で `True` になります |
-""")
-
-# ※もしピンの画像をアプリ上に表示させたい場合は、以下のコメントアウト(#)を外して、
-# 同じフォルダに保存した画像ファイル名（例: green_pin.png など）を指定してください。
-# col1, col2, col3 = st.columns(3)
-# with col1:
-#     st.image("green_pin.png", width=50, caption="1700003: mdst")
-# with col2:
-#     st.image("yellow_pin.png", width=50, caption="1700004: alt. mdst sst")
-# with col3:
-#     st.image("pink_pin.png", width=50, caption="1700005: tf")
+# HTMLのimgタグをMarkdownの表に埋め込む（unsafe_allow_html=Trueが必須）
+st.markdown(f"""
+| アイコン | アイコン番号 | 判定される岩相・状態 | 備考 |
+| :---: | :--- | :--- | :--- |
+| {img_03} | **1700003** | mdst | |
+| {img_04} | **1700004** | alt. mdst sst | |
+| {img_05} | **1700005** | tf | |
+| {img_06} | **1700006** | sst | |
+| 🚫 | **1910003** | Road Closed (通行止め) | 別列で `True` になります |
+""", unsafe_allow_html=True)
 
 st.divider() # 区切り線
 

@@ -25,6 +25,7 @@ img_03 = get_image_tag("green_pin.png")
 img_04 = get_image_tag("orange_pin.png")
 img_05 = get_image_tag("pink_pin.png")
 img_06 = get_image_tag("yellow_pin.png")
+img_07 = get_image_tag("road_closed.png")
 
 # ＝=========================================
 # アプリの説明書き（UI部分）
@@ -47,7 +48,7 @@ st.markdown(f"""
 | {img_04} | **1700004** | alt. mdst sst | |
 | {img_05} | **1700005** | tf | |
 | {img_06} | **1700006** | sst | |
-| 🚫 | **1910003** | Road Closed (通行止め) | 別列で `True` になります |
+| {img_07} | **1910003** | Road Closed (通行止め) | 別列で `True` になります |
 """, unsafe_allow_html=True)
 
 st.divider() # 区切り線

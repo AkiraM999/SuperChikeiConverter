@@ -5,6 +5,7 @@ import io
 import base64
 import os
 from datetime import datetime, timedelta, timezone
+from pyproj import Transformer
 
 # ページ設定
 st.set_page_config(page_title="GPX to QGIS Database", layout="wide")
@@ -148,15 +149,62 @@ def process_gpx(file_content):
         
     return pd.DataFrame(data_list)
 
+# 座標変換関数
+def add_xy_coordinates(df, coord_sys):
+    if coord_sys == "選択しない":
+        return df
+    
+    # JGD2011の各系のEPSGコード
+    if coord_sys == "平面直角座標系Ⅷ（８）系":
+        epsg = 6676
+    elif coord_sys == "平面直角座標系Ⅹ（１０）系":
+        epsg = 6678
+    else:
+        return df
+
+    # WGS84(EPSG:4326) から 目的の平面直角座標系へ変換
+    transformer = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+
+    x_list = []
+    y_list = []
+    
+    for idx, row in df.iterrows():
+        try:
+            lat = float(row['Latitude'])
+            lon = float(row['Longitude'])
+            # 変換実行 (always_xy=True なので経度, 緯度の順で渡す)
+            easting, northing = transformer.transform(lon, lat)
+            # 日本の平面直角座標系は Xが北向き(Northing)、Yが東向き(Easting)
+            x_list.append(round(northing, 3))
+            y_list.append(round(easting, 3))
+        except (ValueError, TypeError):
+            x_list.append("")
+            y_list.append("")
+            
+    # 列を 'Longitude' の右隣に挿入
+    idx_lon = df.columns.get_loc('Longitude')
+    df.insert(idx_lon + 1, 'X座標', x_list)
+    df.insert(idx_lon + 2, 'Y座標', y_list)
+    
+    return df
+
 # ==========================================
 # ファイルアップロード部
 # ==========================================
-uploaded_file = st.file_uploader("📂 GPXファイルをアップロードしてください", type=["gpx"])
+st.markdown("### ⚙️ 座標系の選択")
+coord_choice = st.radio(
+    "出力したい座標系を選択してください",
+    ("選択しない", "平面直角座標系Ⅷ（８）系", "平面直角座標系Ⅹ（１０）系")
+)
+
+st.markdown("### 📂 データ読み込み")
+uploaded_file = st.file_uploader("GPXファイルをアップロードしてください", type=["gpx"])
 
 if uploaded_file is not None:
     with st.spinner('データを変換中...'):
         file_content = uploaded_file.read()
         df = process_gpx(file_content)
+        df = add_xy_coordinates(df, coord_choice)
     
     st.success("✅ 変換が完了しました！")
     

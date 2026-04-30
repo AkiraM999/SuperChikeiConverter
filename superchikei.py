@@ -6,9 +6,47 @@ from datetime import datetime, timedelta, timezone
 
 # ページ設定
 st.set_page_config(page_title="GPX to QGIS Database", layout="wide")
-st.title("📍 調査用GPXデータ 変換ツール（β版）")
+st.title("📍 調査用GPXデータ 変換ツール")
 
-# アイコンと岩相の対応辞書
+# ＝=========================================
+# アプリの説明書き（UI部分）
+# ==========================================
+st.markdown("""
+### 📝 アプリの仕様
+* **時間の変換**: GPXに記録されている時刻(UTC)は、自動的に**日本標準時(JST)**に変換され、「日付」と「時刻」の別々の列に出力されます。
+* **フラグの自動判定**: 
+  * 「読み」や「コメント」に **`sample`** と記載されている場合は、`Sample_Flag` が `True`（チェックあり）になります。
+  * 「読み」や「コメント」に **`帯磁率`** と記載されている場合は、`Magne_Flag` が `True` になります。
+""")
+
+st.markdown("### 📌 現在対応しているアイコンと岩相の対応表")
+
+# 表形式で対応表を表示
+st.markdown("""
+| アイコン番号 | 判定される岩相・状態 | 備考 |
+| :--- | :--- | :--- |
+| **1700003** | mdst | |
+| **1700004** | alt. mdst sst | |
+| **1700005** | tf | |
+| **1700006** | sst | |
+| **1910003** | Road Closed (通行止め) | 別列で `True` になります |
+""")
+
+# ※もしピンの画像をアプリ上に表示させたい場合は、以下のコメントアウト(#)を外して、
+# 同じフォルダに保存した画像ファイル名（例: green_pin.png など）を指定してください。
+# col1, col2, col3 = st.columns(3)
+# with col1:
+#     st.image("green_pin.png", width=50, caption="1700003: mdst")
+# with col2:
+#     st.image("yellow_pin.png", width=50, caption="1700004: alt. mdst sst")
+# with col3:
+#     st.image("pink_pin.png", width=50, caption="1700005: tf")
+
+st.divider() # 区切り線
+
+# ==========================================
+# 処理ロジック
+# ==========================================
 LITHOLOGY_MAPPING = {
     "1700003": "mdst",
     "1700004": "alt. mdst sst",
@@ -23,14 +61,11 @@ def process_gpx(file_content):
         'kashmir3d': 'http://www.kashmir3d.com/namespace/kashmir3d'
     }
     
-    # 文字化け防止のため、文字列としてデコードしてからパース
     content_str = file_content.decode('utf-8', errors='replace')
     tree = ET.parse(io.StringIO(content_str))
     root = tree.getroot()
     
     data_list = []
-    
-    # JST（日本標準時 = UTC+9時間）の設定
     jst_tz = timezone(timedelta(hours=9), 'JST')
     
     for wpt in root.findall('default:wpt', ns):
@@ -41,25 +76,17 @@ def process_gpx(file_content):
         name = wpt.find('default:name', ns).text if wpt.find('default:name', ns) is not None else ""
         cmt = wpt.find('default:cmt', ns).text if wpt.find('default:cmt', ns) is not None else ""
         
-        # ---------------------------------------------
-        # 日時データの処理（UTC → JST変換 ＆ 日付・時刻分割）
-        # ---------------------------------------------
         time_str = wpt.find('default:time', ns).text if wpt.find('default:time', ns) is not None else ""
         date_val = ""
         time_val = ""
         
         if time_str:
             try:
-                # GPXの時間は通常「2023-10-15T08:30:00Z」のような形式（末尾のZはUTCを意味する）
-                # Fromisoformatで読めるように 'Z' を '+00:00' に置換
                 dt_utc = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-                # JST（日本時間）に変換
                 dt_jst = dt_utc.astimezone(jst_tz)
-                # 日付と時刻文字列に分割
                 date_val = dt_jst.strftime('%Y-%m-%d')
                 time_val = dt_jst.strftime('%H:%M:%S')
             except ValueError:
-                # 万が一想定外のフォーマットだった場合は元のテキストをDate列に入れる
                 date_val = time_str
         
         extensions = wpt.find('default:extensions', ns)
@@ -75,9 +102,6 @@ def process_gpx(file_content):
             if yomi_elem is not None and yomi_elem.text is not None:
                 yomi = yomi_elem.text
 
-        # ---------------------------------------------
-        # 写真情報（linkタグ）の抽出
-        # ---------------------------------------------
         photo_dict = {}
         links = wpt.findall('default:link', ns)
         for i, link in enumerate(links, start=1):
@@ -85,7 +109,6 @@ def process_gpx(file_content):
             if href:
                 photo_dict[f'Photo_{i}'] = href
 
-        # 判定ロジック
         lithology = LITHOLOGY_MAPPING.get(icon_num, "") 
         road_closed_flag = True if icon_num == ROAD_CLOSED_ICON else False
         
@@ -95,14 +118,13 @@ def process_gpx(file_content):
         sample_flag = True if "sample" in text_lower else False
         magne_flag = True if "帯磁率" in text_raw else False
 
-        # 1行分のデータを辞書にまとめる
         row_data = {
             'Point_Name': name,
             'Latitude': lat,
             'Longitude': lon,
             'Elevation': ele,
-            'Date': date_val,  # <--- 分割した日付
-            'Time': time_val,  # <--- 分割した時刻（日本時間）
+            'Date': date_val,
+            'Time': time_val,
             'Lithology': lithology,
             'Sample_Flag': sample_flag,
             'Magne_Flag': magne_flag,
@@ -112,18 +134,15 @@ def process_gpx(file_content):
             'Icon_Num': icon_num
         }
         
-        # 写真データを合体させる
         row_data.update(photo_dict)
-        
         data_list.append(row_data)
         
     return pd.DataFrame(data_list)
 
-
 # ==========================================
-# Streamlit UI
+# ファイルアップロード部
 # ==========================================
-uploaded_file = st.file_uploader("GPXファイルをアップロードしてください", type=["gpx"])
+uploaded_file = st.file_uploader("📂 GPXファイルをアップロードしてください", type=["gpx"])
 
 if uploaded_file is not None:
     with st.spinner('データを変換中...'):
@@ -132,9 +151,7 @@ if uploaded_file is not None:
     
     st.success("✅ 変換が完了しました！")
     
-    # 欠損値（NaN）を空文字に置き換えて見やすくする
     df = df.fillna("")
-    
     st.dataframe(df, use_container_width=True)
     
     st.markdown("### 💾 ダウンロード設定")

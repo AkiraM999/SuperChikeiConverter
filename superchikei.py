@@ -37,7 +37,7 @@ def process_gpx(file_content):
         lat = wpt.get('lat')
         lon = wpt.get('lon')
         
-        ele = wpt.find('defaultele', ns).text if wpt.find('default:ele', ns) is not None else ""
+        ele = wpt.find('default:ele', ns).text if wpt.find('default:ele', ns) is not None else ""
         name = wpt.find('default:name', ns).text if wpt.find('default:name', ns) is not None else ""
         cmt = wpt.find('default:cmt', ns).text if wpt.find('default:cmt', ns) is not None else ""
         

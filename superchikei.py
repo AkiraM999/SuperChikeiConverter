@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import xml.etree.ElementTree as ET
 import io
+from datetime import datetime, timedelta, timezone
 
 # ページ設定
 st.set_page_config(page_title="GPX to QGIS Database", layout="wide")
-st.title("📍 調査用GPXデータ 変換ツール(β版)")
+st.title("📍 調査用GPXデータ 変換ツール（β版）")
 
 # アイコンと岩相の対応辞書
 LITHOLOGY_MAPPING = {
@@ -29,14 +30,37 @@ def process_gpx(file_content):
     
     data_list = []
     
+    # JST（日本標準時 = UTC+9時間）の設定
+    jst_tz = timezone(timedelta(hours=9), 'JST')
+    
     for wpt in root.findall('default:wpt', ns):
         lat = wpt.get('lat')
         lon = wpt.get('lon')
         
-        ele = wpt.find('default:ele', ns).text if wpt.find('default:ele', ns) is not None else ""
-        time = wpt.find('default:time', ns).text if wpt.find('default:time', ns) is not None else ""
+        ele = wpt.find('defaultele', ns).text if wpt.find('default:ele', ns) is not None else ""
         name = wpt.find('default:name', ns).text if wpt.find('default:name', ns) is not None else ""
         cmt = wpt.find('default:cmt', ns).text if wpt.find('default:cmt', ns) is not None else ""
+        
+        # ---------------------------------------------
+        # 日時データの処理（UTC → JST変換 ＆ 日付・時刻分割）
+        # ---------------------------------------------
+        time_str = wpt.find('default:time', ns).text if wpt.find('default:time', ns) is not None else ""
+        date_val = ""
+        time_val = ""
+        
+        if time_str:
+            try:
+                # GPXの時間は通常「2023-10-15T08:30:00Z」のような形式（末尾のZはUTCを意味する）
+                # Fromisoformatで読めるように 'Z' を '+00:00' に置換
+                dt_utc = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                # JST（日本時間）に変換
+                dt_jst = dt_utc.astimezone(jst_tz)
+                # 日付と時刻文字列に分割
+                date_val = dt_jst.strftime('%Y-%m-%d')
+                time_val = dt_jst.strftime('%H:%M:%S')
+            except ValueError:
+                # 万が一想定外のフォーマットだった場合は元のテキストをDate列に入れる
+                date_val = time_str
         
         extensions = wpt.find('default:extensions', ns)
         icon_num = ""
@@ -57,7 +81,6 @@ def process_gpx(file_content):
         photo_dict = {}
         links = wpt.findall('default:link', ns)
         for i, link in enumerate(links, start=1):
-            # href属性からファイル名を取得
             href = link.get('href')
             if href:
                 photo_dict[f'Photo_{i}'] = href
@@ -78,7 +101,8 @@ def process_gpx(file_content):
             'Latitude': lat,
             'Longitude': lon,
             'Elevation': ele,
-            'Time': time,
+            'Date': date_val,  # <--- 分割した日付
+            'Time': time_val,  # <--- 分割した時刻（日本時間）
             'Lithology': lithology,
             'Sample_Flag': sample_flag,
             'Magne_Flag': magne_flag,
@@ -88,12 +112,11 @@ def process_gpx(file_content):
             'Icon_Num': icon_num
         }
         
-        # 写真データを合体させる (Photo_1, Photo_2... が末尾に追加される)
+        # 写真データを合体させる
         row_data.update(photo_dict)
         
         data_list.append(row_data)
         
-    # DataFrameに変換（列が存在しない行は自動的に空欄になる）
     return pd.DataFrame(data_list)
 
 
@@ -115,13 +138,11 @@ if uploaded_file is not None:
     st.dataframe(df, use_container_width=True)
     
     st.markdown("### 💾 ダウンロード設定")
-    # 文字コードを選択させる
     encoding_choice = st.radio(
         "CSVの文字コードを選んでください（文字化けする場合は変更してください）",
         ("UTF-8 (BOM付き) - 多くの環境で推奨", "Shift-JIS - WindowsのExcelで直接開く場合", "UTF-8 - QGIS等の標準")
     )
     
-    # 選択された文字コードに応じてエンコーディングを設定
     if "Shift-JIS" in encoding_choice:
         enc = 'shift_jis'
         csv = df.to_csv(index=False, encoding=enc, errors='ignore')

@@ -204,6 +204,8 @@ if uploaded_file is not None:
     with st.spinner('データを変換中...'):
         file_content = uploaded_file.read()
         df = process_gpx(file_content)
+        
+        # 座標変換関数を呼び出し
         df = add_xy_coordinates(df, coord_choice)
     
     st.success("✅ 変換が完了しました！")
@@ -211,25 +213,43 @@ if uploaded_file is not None:
     df = df.fillna("")
     st.dataframe(df, use_container_width=True)
     
-    st.markdown("### 💾 ダウンロード設定")
-    encoding_choice = st.radio(
-        "CSVの文字コードを選んでください（文字化けする場合は変更してください）",
-        ("UTF-8 (BOM付き) - 多くの環境で推奨", "Shift-JIS - WindowsのExcelで直接開く場合", "UTF-8 - QGIS等の標準")
-    )
+    st.markdown("### 💾 ダウンロード")
+    st.write("用途に合わせて形式を選び、ダウンロードしてください。（Excelで見る場合は「Excel (.xlsx)」が最も文字化けしにくくオススメです）")
     
-    if "Shift-JIS" in encoding_choice:
-        enc = 'shift_jis'
-        csv = df.to_csv(index=False, encoding=enc, errors='ignore')
-    elif "BOM付き" in encoding_choice:
-        enc = 'utf-8-sig'
-        csv = df.to_csv(index=False, encoding=enc)
-    else:
-        enc = 'utf-8'
-        csv = df.to_csv(index=False, encoding=enc)
-
-    st.download_button(
-        label=f"📥 CSVをダウンロード ({enc})",
-        data=csv,
-        file_name="geology_data.csv",
-        mime="text/csv",
-    )
+    # ボタンを横並びにする
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # --- 1. Excel (.xlsx) ダウンロード ---
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Geology_Data')
+        
+        st.download_button(
+            label="📊 Excel (.xlsx) をダウンロード",
+            data=buffer.getvalue(),
+            file_name="geology_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+    with col2:
+        # --- 2. CSV (.csv) ダウンロード ---
+        # WindowsのExcel対策でBOM付きUTF-8 (utf-8-sig) を使用
+        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+        st.download_button(
+            label="📝 CSV (.csv) をダウンロード",
+            data=csv_data,
+            file_name="geology_data.csv",
+            mime="text/csv"
+        )
+        
+    with col3:
+        # --- 3. Text (.txt) ダウンロード ---
+        # タブ区切り(TSV)として出力
+        txt_data = df.to_csv(index=False, sep='\t', encoding='utf-8')
+        st.download_button(
+            label="📄 Text (.txt) をダウンロード",
+            data=txt_data,
+            file_name="geology_data.txt",
+            mime="text/plain"
+        )

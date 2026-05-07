@@ -130,11 +130,11 @@ def process_gpx(file_content):
 
         row_data = {
             'Point_Name': name,
+            'Date': date_val,
+            'Time': time_val,
             'Latitude': lat,
             'Longitude': lon,
             'Elevation': ele,
-            'Date': date_val,
-            'Time': time_val,
             'Lithology': lithology,
             'Sample_Flag': sample_flag,
             'Magne_Flag': magne_flag,

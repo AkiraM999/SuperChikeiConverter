@@ -175,8 +175,8 @@ def add_xy_coordinates(df, coord_sys):
             # 変換実行 (always_xy=True なので経度, 緯度の順で渡す)
             easting, northing = transformer.transform(lon, lat)
             # 日本の平面直角座標系は Xが北向き(Northing)、Yが東向き(Easting)
-            x_list.append(round(northing, 3))
-            y_list.append(round(easting, 3))
+            x_list.append(round(easting, 3))
+            y_list.append(round(northing, 3))
         except (ValueError, TypeError):
             x_list.append("")
             y_list.append("")
